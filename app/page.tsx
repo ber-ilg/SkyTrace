@@ -4,6 +4,7 @@ import { signIn, signOut, useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import FlightsList from '@/components/FlightsList';
 import FlightsMap from '@/components/FlightsMap';
+import FlightStats from '@/components/FlightStats';
 import { supabase } from '@/lib/supabase';
 import type { Flight } from '@/lib/supabase';
 
@@ -165,6 +166,9 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Flight Statistics */}
+        <FlightStats flights={flights} />
 
         {/* Flights Map */}
         <div className="mb-8">
