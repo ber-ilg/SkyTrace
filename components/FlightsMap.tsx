@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Flight } from '@/lib/supabase';
+import type { LatLngExpression } from 'leaflet';
 
 // Dynamically import map components (Leaflet doesn't work server-side)
 const MapContainer = dynamic(
@@ -98,10 +99,12 @@ export default function FlightsMap({ flights }: FlightsMapProps) {
     ) /
     (validFlights.length * 2);
 
+  const mapCenter: LatLngExpression = [avgLat, avgLng];
+
   return (
     <div className="h-96 w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer
-        center={[avgLat, avgLng] as [number, number]}
+        center={mapCenter}
         zoom={2}
         style={{ height: '100%', width: '100%' }}
       >
@@ -111,21 +114,24 @@ export default function FlightsMap({ flights }: FlightsMapProps) {
         />
 
         {/* Airport markers */}
-        {Array.from(airports.entries()).map(([code, info]) => (
-          <Marker key={code} position={[info.lat, info.lng]}>
-            <Popup>
-              <strong>{code}</strong>
-              <br />
-              {info.city}, {info.country}
-            </Popup>
-          </Marker>
-        ))}
+        {Array.from(airports.entries()).map(([code, info]) => {
+          const position: LatLngExpression = [info.lat, info.lng];
+          return (
+            <Marker key={code} position={position}>
+              <Popup>
+                <strong>{code}</strong>
+                <br />
+                {info.city}, {info.country}
+              </Popup>
+            </Marker>
+          );
+        })}
 
         {/* Flight paths */}
         {validFlights.map((flight, idx) => {
           if (!flight.departure_lat || !flight.arrival_lat) return null;
 
-          const positions: [number, number][] = [
+          const positions: LatLngExpression[] = [
             [flight.departure_lat, flight.departure_lng!],
             [flight.arrival_lat, flight.arrival_lng!],
           ];
