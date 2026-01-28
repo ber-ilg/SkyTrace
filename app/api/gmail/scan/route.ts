@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { extractFlightFromEmailImproved } from '@/lib/flight-extractor-improved';
 import { extractFlightWithGemini } from '@/lib/gemini-extractor';
 import { getAirportInfo } from '@/lib/airports';
+import { extractTextFromPdfBase64 } from '@/lib/pdf-extractor';
+import { ScanLogger } from '@/lib/scan-logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,6 +70,10 @@ export async function POST(request: NextRequest) {
     const messages = response.data.messages || [];
     let emailsScanned = 0;
     let flightsFound = 0;
+    const logger = new ScanLogger();
+    
+    // Track PNRs to prevent duplicates within the same scan
+    const seenPnrs = new Set<string>();
 
     for (const message of messages) {
       const fullMessage = await gmail.users.messages.get({
@@ -82,6 +88,8 @@ export async function POST(request: NextRequest) {
       const headers = payload?.headers || [];
       
       const subject = headers.find(h => h.name === 'Subject')?.value || '';
+      const from = headers.find(h => h.name === 'From')?.value || '';
+      const dateHeader = headers.find(h => h.name === 'Date')?.value || '';
       
       // Enhanced body extraction: try text/plain, then text/html, then nested parts
       let body = '';
@@ -117,13 +125,39 @@ export async function POST(request: NextRequest) {
       } else if (payload?.parts) {
         body = extractBody(payload.parts);
       }
+      
+      // Extract text from PDF attachments
+      let pdfText = '';
+      if (payload?.parts) {
+        for (const part of payload.parts) {
+          if (part.mimeType === 'application/pdf' && part.body?.attachmentId) {
+            try {
+              const attachment = await gmail.users.messages.attachments.get({
+                userId: 'me',
+                messageId: message.id!,
+                id: part.body.attachmentId,
+              });
+              
+              if (attachment.data.data) {
+                const extractedText = await extractTextFromPdfBase64(attachment.data.data);
+                pdfText += '\n' + extractedText;
+              }
+            } catch (error) {
+              console.error('PDF attachment fetch error:', error);
+            }
+          }
+        }
+      }
+      
+      // Combine body and PDF text
+      const fullText = body + pdfText;
 
-      // Hybrid extraction: Try improved regex first
-      let flightData = extractFlightFromEmailImproved(subject, body);
+      // Hybrid extraction: Try improved regex first (using fullText with PDF content)
+      let flightData = extractFlightFromEmailImproved(subject, fullText);
       
       // If regex failed, try Gemini AI (if API key is configured)
       if (!flightData || !flightData.departureAirport || !flightData.arrivalAirport) {
-        const geminiData = await extractFlightWithGemini(subject, body);
+        const geminiData = await extractFlightWithGemini(subject, fullText);
         if (geminiData && geminiData.departureAirport && geminiData.arrivalAirport) {
           flightData = {
             confirmationCode: geminiData.confirmationCode,
@@ -141,11 +175,60 @@ export async function POST(request: NextRequest) {
         // STRICT RULE: Only process if we have a flight number
         // This filters out check-in reminders, marketing emails, etc.
         if (!flightData.flightNumber) {
-          console.log('Skipping email without flight number');
+          logger.log({
+            emailId: message.id!,
+            subject,
+            from,
+            date: dateHeader,
+            status: 'skipped',
+            reason: 'No flight number found',
+            extractedData: flightData,
+          });
           continue;
         }
+        
+        // PNR-based deduplication within this scan
+        if (flightData.confirmationCode) {
+          const pnrKey = `${flightData.confirmationCode}-${flightData.departureAirport}-${flightData.arrivalAirport}`;
+          if (seenPnrs.has(pnrKey)) {
+            logger.log({
+              emailId: message.id!,
+              subject,
+              from,
+              date: dateHeader,
+              status: 'skipped',
+              reason: 'Duplicate PNR in current scan',
+              extractedData: flightData,
+            });
+            continue;
+          }
+          seenPnrs.add(pnrKey);
+        }
 
-        // Check for duplicates using flight number as primary key
+        // Smart deduplication: Check by PNR first (most reliable)
+        if (flightData.confirmationCode) {
+          const { data: existingByPnr } = await supabase
+            .from('flights')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('confirmation_code', flightData.confirmationCode)
+            .maybeSingle();
+
+          if (existingByPnr) {
+            logger.log({
+              emailId: message.id!,
+              subject,
+              from,
+              date: dateHeader,
+              status: 'skipped',
+              reason: 'Duplicate PNR in database',
+              extractedData: flightData,
+            });
+            continue;
+          }
+        }
+        
+        // Check for duplicates using flight number as secondary check
         const { data: existingByFlightNum } = await supabase
           .from('flights')
           .select('id')
@@ -156,7 +239,15 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
 
         if (existingByFlightNum) {
-          console.log(`Skipping duplicate flight: ${flightData.flightNumber}`);
+          logger.log({
+            emailId: message.id!,
+            subject,
+            from,
+            date: dateHeader,
+            status: 'skipped',
+            reason: 'Duplicate flight number',
+            extractedData: flightData,
+          });
           continue;
         }
 
@@ -172,7 +263,15 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
           if (existingByDate) {
-            console.log(`Skipping duplicate by date: ${flightData.departureAirport} → ${flightData.arrivalAirport} on ${flightData.departureDate.toISOString()}`);
+            logger.log({
+              emailId: message.id!,
+              subject,
+              from,
+              date: dateHeader,
+              status: 'skipped',
+              reason: 'Duplicate by date',
+              extractedData: flightData,
+            });
             continue;
           }
         }
@@ -204,9 +303,36 @@ export async function POST(request: NextRequest) {
 
         if (insertError) {
           console.error('Flight insert error:', insertError);
+          logger.log({
+            emailId: message.id!,
+            subject,
+            from,
+            date: dateHeader,
+            status: 'failed',
+            reason: `Database insert error: ${insertError.message}`,
+            extractedData: flightData,
+          });
         } else {
           flightsFound++;
+          logger.log({
+            emailId: message.id!,
+            subject,
+            from,
+            date: dateHeader,
+            status: 'success',
+            extractedData: flightData,
+          });
         }
+      } else {
+        // No flight data extracted
+        logger.log({
+          emailId: message.id!,
+          subject,
+          from,
+          date: dateHeader,
+          status: 'no_flight_data',
+          reason: 'Could not extract flight information',
+        });
       }
     }
 
@@ -221,10 +347,18 @@ export async function POST(request: NextRequest) {
         last_sync_at: new Date().toISOString(),
       });
 
+    const logSummary = logger.getSummary();
+    const unparseableEmails = logger.getUnparseableEmails();
+    
+    console.log('Scan Summary:', logSummary);
+    console.log('Unparseable Emails:', unparseableEmails.length);
+
     return NextResponse.json({
       success: true,
       emailsScanned,
       flightsFound,
+      summary: logSummary,
+      unparseableEmails: unparseableEmails.slice(0, 10), // Return first 10 for debugging
     });
   } catch (error: any) {
     console.error('Gmail scan error:', error);
