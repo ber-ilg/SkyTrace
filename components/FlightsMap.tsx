@@ -101,7 +101,7 @@ export default function FlightsMap({ flights }: FlightsMapProps) {
   return (
     <div className="h-96 w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer
-        center={[avgLat, avgLng]}
+        center={[avgLat, avgLng] as [number, number]}
         zoom={2}
         style={{ height: '100%', width: '100%' }}
       >
