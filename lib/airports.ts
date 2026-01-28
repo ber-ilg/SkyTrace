@@ -32,7 +32,13 @@ export const VALID_IATA_CODES = new Set([
   'AKL', 'CHC', 'WLG', 'BNE', 'PER', 'ADL',
   
   // Turkey (since user is Turkish)
-  'IST', 'SAW', 'AYT', 'ADB', 'ESB', 'DLM', 'BJV', 'TZX', 'ASR',
+  'IST', 'SAW', 'AYT', 'ADB', 'ESB', 'DLM', 'BJV', 'TZX', 'ASR', 'ANK',
+  
+  // UK More
+  'STN', 'LCY', 'SEN', 'LTN', 'BRS', 'EMA', 'LPL', 'ABZ',
+  
+  // Brazil
+  'GIG', 'GRU', 'BSB', 'CGH', 'SSA', 'FOR',
   
   // Thailand (user grew up there)
   'BKK', 'DMK', 'CNX', 'HKT', 'USM', 'HDY',
@@ -138,8 +144,22 @@ export const AIRPORT_DATA: Record<string, AirportInfo> = {
   'CNX': { code: 'CNX', city: 'Chiang Mai', country: 'Thailand', lat: 18.7668, lng: 98.9629 },
   'HKT': { code: 'HKT', city: 'Phuket', country: 'Thailand', lat: 8.1132, lng: 98.3169 },
   
-  // Other
+  // UK Regional
+  'STN': { code: 'STN', city: 'London', country: 'United Kingdom', lat: 51.8860, lng: 0.2389 },
+  'EDI': { code: 'EDI', city: 'Edinburgh', country: 'United Kingdom', lat: 55.9500, lng: -3.3725 },
+  'GLA': { code: 'GLA', city: 'Glasgow', country: 'United Kingdom', lat: 55.8719, lng: -4.4331 },
+  'BHX': { code: 'BHX', city: 'Birmingham', country: 'United Kingdom', lat: 52.4539, lng: -1.7480 },
+  
+  // Turkey Regional  
+  'DLM': { code: 'DLM', city: 'Dalaman', country: 'Turkey', lat: 36.7131, lng: 28.7925 },
+  'ADB': { code: 'ADB', city: 'Izmir', country: 'Turkey', lat: 38.2924, lng: 27.1570 },
+  'BJV': { code: 'BJV', city: 'Bodrum', country: 'Turkey', lat: 37.2506, lng: 27.6697 },
+  
+  // Brazil
+  'GIG': { code: 'GIG', city: 'Rio de Janeiro', country: 'Brazil', lat: -22.8099, lng: -43.2505 },
   'GRU': { code: 'GRU', city: 'Sao Paulo', country: 'Brazil', lat: -23.4356, lng: -46.4731 },
+  
+  // Other
   'MEX': { code: 'MEX', city: 'Mexico City', country: 'Mexico', lat: 19.4363, lng: -99.0721 },
   'YVR': { code: 'YVR', city: 'Vancouver', country: 'Canada', lat: 49.1967, lng: -123.1815 },
   'JNB': { code: 'JNB', city: 'Johannesburg', country: 'South Africa', lat: -26.1392, lng: 28.2460 },
