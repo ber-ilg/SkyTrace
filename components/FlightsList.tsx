@@ -17,11 +17,26 @@ export default function FlightsList() {
   }, [session]);
 
   const fetchFlights = async () => {
+    if (!session?.user?.email) return;
+    
     setLoading(true);
+    
+    // Get user ID from email
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', session.user.email)
+      .single();
+    
+    if (!userData) {
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('flights')
       .select('*')
-      .eq('user_id', session?.userId)
+      .eq('user_id', userData.id)
       .order('departure_date', { ascending: false });
 
     if (error) {

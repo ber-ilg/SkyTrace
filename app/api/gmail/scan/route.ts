@@ -9,9 +9,30 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session?.accessToken) {
+    if (!session?.accessToken || !session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Create or get user
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .upsert({
+        email: session.user.email,
+        name: session.user.name,
+        image: session.user.image,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'email',
+      })
+      .select()
+      .single();
+
+    if (userError || !userData) {
+      console.error('User creation error:', userError);
+      return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+    }
+
+    const userId = userData.id;
 
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: session.accessToken });
@@ -22,7 +43,7 @@ export async function POST(request: NextRequest) {
     await supabase
       .from('email_sync_status')
       .upsert({
-        user_id: session.userId,
+        user_id: userId,
         sync_status: 'in_progress',
         last_sync_at: new Date().toISOString(),
       });
@@ -78,8 +99,8 @@ export async function POST(request: NextRequest) {
         const arrData = getAirportData(flightData.arrivalAirport);
 
         // Insert into database
-        await supabase.from('flights').insert({
-          user_id: session.userId,
+        const { error: insertError } = await supabase.from('flights').insert({
+          user_id: userId,
           confirmation_code: flightData.confirmationCode,
           airline: flightData.airline,
           flight_number: flightData.flightNumber,
@@ -98,7 +119,11 @@ export async function POST(request: NextRequest) {
           raw_email_subject: subject,
         });
 
-        flightsFound++;
+        if (insertError) {
+          console.error('Flight insert error:', insertError);
+        } else {
+          flightsFound++;
+        }
       }
     }
 
@@ -106,7 +131,7 @@ export async function POST(request: NextRequest) {
     await supabase
       .from('email_sync_status')
       .upsert({
-        user_id: session.userId,
+        user_id: userId,
         sync_status: 'completed',
         emails_scanned: emailsScanned,
         flights_found: flightsFound,
