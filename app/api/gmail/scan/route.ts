@@ -1,0 +1,129 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { google } from 'googleapis';
+import { authOptions } from '../../auth/[...nextauth]/route';
+import { supabase } from '@/lib/supabase';
+import { extractFlightFromEmail, getAirportData } from '@/lib/flight-extractor';
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.accessToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: session.accessToken });
+
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    // Update sync status to in_progress
+    await supabase
+      .from('email_sync_status')
+      .upsert({
+        user_id: session.userId,
+        sync_status: 'in_progress',
+        last_sync_at: new Date().toISOString(),
+      });
+
+    // Search for flight-related emails in the last 2 years
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+    const afterDate = Math.floor(twoYearsAgo.getTime() / 1000);
+
+    const query = `(flight OR booking OR confirmation OR itinerary) after:${afterDate}`;
+    
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: query,
+      maxResults: 100, // Start with 100 for MVP
+    });
+
+    const messages = response.data.messages || [];
+    let emailsScanned = 0;
+    let flightsFound = 0;
+
+    for (const message of messages) {
+      const fullMessage = await gmail.users.messages.get({
+        userId: 'me',
+        id: message.id!,
+        format: 'full',
+      });
+
+      emailsScanned++;
+
+      const payload = fullMessage.data.payload;
+      const headers = payload?.headers || [];
+      
+      const subject = headers.find(h => h.name === 'Subject')?.value || '';
+      
+      // Get body (simplified - would need better parsing for complex emails)
+      let body = '';
+      if (payload?.body?.data) {
+        body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
+      } else if (payload?.parts) {
+        const textPart = payload.parts.find(p => p.mimeType === 'text/plain');
+        if (textPart?.body?.data) {
+          body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
+        }
+      }
+
+      // Try to extract flight info
+      const flightData = extractFlightFromEmail(subject, body);
+      
+      if (flightData && flightData.departureAirport && flightData.arrivalAirport) {
+        // Enrich with airport data
+        const depData = getAirportData(flightData.departureAirport);
+        const arrData = getAirportData(flightData.arrivalAirport);
+
+        // Insert into database
+        await supabase.from('flights').insert({
+          user_id: session.userId,
+          confirmation_code: flightData.confirmationCode,
+          airline: flightData.airline,
+          flight_number: flightData.flightNumber,
+          departure_airport: flightData.departureAirport,
+          departure_city: depData?.city,
+          departure_country: depData?.country,
+          departure_lat: depData?.lat,
+          departure_lng: depData?.lng,
+          departure_date: flightData.departureDate?.toISOString(),
+          arrival_airport: flightData.arrivalAirport,
+          arrival_city: arrData?.city,
+          arrival_country: arrData?.country,
+          arrival_lat: arrData?.lat,
+          arrival_lng: arrData?.lng,
+          arrival_date: flightData.arrivalDate?.toISOString(),
+          raw_email_subject: subject,
+        });
+
+        flightsFound++;
+      }
+    }
+
+    // Update sync status to completed
+    await supabase
+      .from('email_sync_status')
+      .upsert({
+        user_id: session.userId,
+        sync_status: 'completed',
+        emails_scanned: emailsScanned,
+        flights_found: flightsFound,
+        last_sync_at: new Date().toISOString(),
+      });
+
+    return NextResponse.json({
+      success: true,
+      emailsScanned,
+      flightsFound,
+    });
+  } catch (error: any) {
+    console.error('Gmail scan error:', error);
+    
+    return NextResponse.json(
+      { error: error.message || 'Failed to scan emails' },
+      { status: 500 }
+    );
+  }
+}
