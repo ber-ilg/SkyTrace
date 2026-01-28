@@ -169,6 +169,48 @@ export function isValidIataCode(code: string): boolean {
   return VALID_IATA_CODES.has(code.toUpperCase());
 }
 
-export function getAirportInfo(code: string): AirportInfo | null {
-  return AIRPORT_DATA[code.toUpperCase()] || null;
+// Cache for dynamically fetched airports
+const dynamicAirportCache: Record<string, AirportInfo> = {};
+
+export async function getAirportInfo(code: string): Promise<AirportInfo | null> {
+  const upperCode = code.toUpperCase();
+  
+  // Check static database first
+  if (AIRPORT_DATA[upperCode]) {
+    return AIRPORT_DATA[upperCode];
+  }
+  
+  // Check dynamic cache
+  if (dynamicAirportCache[upperCode]) {
+    return dynamicAirportCache[upperCode];
+  }
+  
+  // Fallback: Fetch from free API (iatageo.com - no key required)
+  try {
+    const response = await fetch(`https://iatageo.com/getCode/${upperCode}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.latitude && data.longitude) {
+        const info: AirportInfo = {
+          code: upperCode,
+          city: data.city || data.name || '',
+          country: data.country || '',
+          lat: parseFloat(data.latitude),
+          lng: parseFloat(data.longitude),
+        };
+        // Cache it
+        dynamicAirportCache[upperCode] = info;
+        return info;
+      }
+    }
+  } catch (error) {
+    console.warn(`Failed to fetch airport data for ${upperCode}:`, error);
+  }
+  
+  return null;
+}
+
+// Synchronous version for backward compatibility
+export function getAirportInfoSync(code: string): AirportInfo | null {
+  return AIRPORT_DATA[code.toUpperCase()] || dynamicAirportCache[code.toUpperCase()] || null;
 }

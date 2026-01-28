@@ -152,9 +152,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Enrich with airport data
-        const depData = getAirportInfo(flightData.departureAirport);
-        const arrData = getAirportInfo(flightData.arrivalAirport);
+        // Enrich with airport data (try static first, then API fallback)
+        const depData = await getAirportInfo(flightData.departureAirport);
+        const arrData = await getAirportInfo(flightData.arrivalAirport);
 
         // Insert into database
         const { error: insertError } = await supabase.from('flights').insert({
