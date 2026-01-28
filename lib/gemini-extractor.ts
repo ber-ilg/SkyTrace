@@ -23,21 +23,33 @@ export async function extractFlightWithGemini(
   }
 
   const prompt = `
-Extract flight information from this email. Return ONLY a JSON object with these fields (use null if not found):
-- confirmationCode: booking reference/PNR (string)
-- airline: airline name (string)
-- flightNumber: flight number including airline code (string)
+You are a flight information extraction system. Extract flight booking details from this email.
+
+IMPORTANT RULES:
+1. ONLY extract if this is a flight BOOKING CONFIRMATION (not check-in reminders, marketing, or newsletters)
+2. Flight number is MANDATORY - if no flight number exists, return null for ALL fields
+3. Airport codes must be exactly 3 uppercase letters (IATA codes)
+4. Dates must be in YYYY-MM-DD format
+5. Return ONLY valid JSON - no markdown, no explanations, no commentary
+
+Fields to extract (use null if not found):
+- confirmationCode: booking reference/PNR/record locator (string)
+- airline: full airline name (string)
+- flightNumber: flight number with airline code, e.g., "AA123" or "BA456" (string)
 - departureAirport: 3-letter IATA code (string, uppercase)
 - arrivalAirport: 3-letter IATA code (string, uppercase)
-- departureDate: ISO date string YYYY-MM-DD (string)
-- arrivalDate: ISO date string YYYY-MM-DD (string)
+- departureDate: departure date in YYYY-MM-DD format (string)
+- arrivalDate: arrival date in YYYY-MM-DD format (string)
 
 Email Subject: ${subject}
 
-Email Body:
-${body.slice(0, 2000)}
+Email Body (first 3000 chars):
+${body.slice(0, 3000)}
 
-Return ONLY valid JSON, no markdown, no explanations.
+Return ONLY valid JSON. Example:
+{"confirmationCode":"ABC123","airline":"British Airways","flightNumber":"BA456","departureAirport":"LHR","arrivalAirport":"JFK","departureDate":"2024-06-15","arrivalDate":"2024-06-15"}
+
+If this is NOT a flight booking confirmation email, return: {"error":"not_a_flight_booking"}
 `;
 
   try {
@@ -79,8 +91,13 @@ Return ONLY valid JSON, no markdown, no explanations.
 
     const flightData: GeminiFlightData = JSON.parse(jsonMatch[0]);
     
-    // Validate that we got at least airports
-    if (flightData.departureAirport && flightData.arrivalAirport) {
+    // Check if Gemini explicitly marked this as not a flight booking
+    if ('error' in flightData) {
+      return null;
+    }
+    
+    // Validate that we got at least airports AND flight number (mandatory)
+    if (flightData.departureAirport && flightData.arrivalAirport && flightData.flightNumber) {
       return flightData;
     }
 

@@ -34,6 +34,10 @@ const CONFIRMATION_PATTERNS = [
   /confirmation\s*(?:code|number)?:?\s*([A-Z0-9]{5,8})/i,
   /booking\s*(?:reference|code)?:?\s*([A-Z0-9]{5,8})/i,
   /PNR:?\s*([A-Z0-9]{5,8})/i,
+  /record\s*locator:?\s*([A-Z0-9]{5,8})/i,
+  /reservation\s*(?:code|number)?:?\s*([A-Z0-9]{5,8})/i,
+  /ref(?:erence)?:?\s*([A-Z0-9]{5,8})/i,
+  /ticket\s*(?:number)?:?\s*([A-Z0-9]{5,8})/i,
 ];
 
 // Flight number patterns (airline code + number)
@@ -126,6 +130,15 @@ function isFlightEmail(text: string): boolean {
     'your booking',
     'itinerary',
     'e-ticket',
+    'eticket',
+    'travel confirmation',
+    'reservation confirmed',
+    'booking reference',
+    'pnr',
+    'record locator',
+    'boarding pass',
+    'ticket receipt',
+    'flight receipt',
   ];
   
   // REJECT if it has any of these (check-in reminders, marketing, etc.)
@@ -141,6 +154,9 @@ function isFlightEmail(text: string): boolean {
     'sale',
     'discount',
     'subscribe',
+    'unsubscribe',
+    'promotional',
+    'advertisement',
   ];
   
   // Check for rejection keywords first

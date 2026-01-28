@@ -56,12 +56,13 @@ export async function POST(request: NextRequest) {
     twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
     const afterDate = Math.floor(twoYearsAgo.getTime() / 1000);
 
-    const query = `("booking confirmation" OR "flight confirmation" OR "itinerary" OR "e-ticket") after:${afterDate}`;
+    // Expanded search keywords for better coverage
+    const query = `("booking confirmation" OR "flight confirmation" OR "itinerary" OR "e-ticket" OR "ticket confirmation" OR "travel confirmation" OR "reservation confirmed" OR "your flight" OR "booking reference" OR "PNR" OR "boarding pass") -"check-in now" -"web check-in" after:${afterDate}`;
     
     const response = await gmail.users.messages.list({
       userId: 'me',
       q: query,
-      maxResults: 100, // Start with 100 for MVP
+      maxResults: 500, // Increased from 100 → 500 for broader scan
     });
 
     const messages = response.data.messages || [];
@@ -82,15 +83,39 @@ export async function POST(request: NextRequest) {
       
       const subject = headers.find(h => h.name === 'Subject')?.value || '';
       
-      // Get body (simplified - would need better parsing for complex emails)
+      // Enhanced body extraction: try text/plain, then text/html, then nested parts
       let body = '';
+      
+      const extractBody = (parts: any[]): string => {
+        for (const part of parts) {
+          // Recursive check for nested parts
+          if (part.parts) {
+            const nested = extractBody(part.parts);
+            if (nested) return nested;
+          }
+          
+          // Try text/plain first (cleanest)
+          if (part.mimeType === 'text/plain' && part.body?.data) {
+            return Buffer.from(part.body.data, 'base64').toString('utf-8');
+          }
+        }
+        
+        // Fallback to HTML if no plain text found
+        for (const part of parts) {
+          if (part.mimeType === 'text/html' && part.body?.data) {
+            const html = Buffer.from(part.body.data, 'base64').toString('utf-8');
+            // Strip HTML tags for basic text extraction
+            return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+          }
+        }
+        
+        return '';
+      };
+      
       if (payload?.body?.data) {
         body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
       } else if (payload?.parts) {
-        const textPart = payload.parts.find(p => p.mimeType === 'text/plain');
-        if (textPart?.body?.data) {
-          body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-        }
+        body = extractBody(payload.parts);
       }
 
       // Hybrid extraction: Try improved regex first
