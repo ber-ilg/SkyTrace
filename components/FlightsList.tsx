@@ -1,52 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { supabase } from '@/lib/supabase';
 import type { Flight } from '@/lib/supabase';
 
-export default function FlightsList() {
-  const { data: session } = useSession();
-  const [flights, setFlights] = useState<Flight[]>([]);
-  const [loading, setLoading] = useState(true);
+interface FlightsListProps {
+  flights: Flight[];
+  loading: boolean;
+  onRefresh: () => void;
+}
 
-  useEffect(() => {
-    if (session?.userId) {
-      fetchFlights();
-    }
-  }, [session]);
-
-  const fetchFlights = async () => {
-    if (!session?.user?.email) return;
-    
-    setLoading(true);
-    
-    // Get user ID from email
-    const { data: userData } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', session.user.email)
-      .single();
-    
-    if (!userData) {
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('flights')
-      .select('*')
-      .eq('user_id', userData.id)
-      .order('departure_date', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching flights:', error);
-    } else {
-      setFlights(data || []);
-    }
-    setLoading(false);
-  };
-
+export default function FlightsList({ flights, loading, onRefresh }: FlightsListProps) {
   if (loading) {
     return (
       <div className="rounded-lg bg-white p-6 shadow">
@@ -70,9 +32,17 @@ export default function FlightsList() {
 
   return (
     <div className="rounded-lg bg-white p-6 shadow">
-      <h2 className="mb-4 text-xl font-semibold text-gray-900">
-        Your Flights ({flights.length})
-      </h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Your Flights ({flights.length})
+        </h2>
+        <button
+          onClick={onRefresh}
+          className="text-sm text-blue-600 hover:text-blue-800"
+        >
+          ↻ Refresh
+        </button>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">

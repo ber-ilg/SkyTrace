@@ -1,8 +1,11 @@
 'use client';
 
 import { signIn, signOut, useSession } from 'next-auth/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FlightsList from '@/components/FlightsList';
+import FlightsMap from '@/components/FlightsMap';
+import { supabase } from '@/lib/supabase';
+import type { Flight } from '@/lib/supabase';
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -11,6 +14,37 @@ export default function Home() {
     emailsScanned?: number;
     flightsFound?: number;
   } | null>(null);
+  const [flights, setFlights] = useState<Flight[]>([]);
+  const [loadingFlights, setLoadingFlights] = useState(false);
+
+  const fetchFlights = async () => {
+    if (!session?.user?.email) return;
+    
+    setLoadingFlights(true);
+    
+    // Get user ID from email
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', session.user.email)
+      .single();
+    
+    if (!userData) {
+      setLoadingFlights(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('flights')
+      .select('*')
+      .eq('user_id', userData.id)
+      .order('departure_date', { ascending: false });
+
+    if (!error && data) {
+      setFlights(data);
+    }
+    setLoadingFlights(false);
+  };
 
   const handleScanEmails = async () => {
     setScanning(true);
@@ -27,6 +61,8 @@ export default function Home() {
         alert(`Error: ${data.error}`);
       } else {
         setScanResult(data);
+        // Refresh flights after scan
+        await fetchFlights();
       }
     } catch (error) {
       alert('Failed to scan emails. Please try again.');
@@ -34,6 +70,12 @@ export default function Home() {
       setScanning(false);
     }
   };
+
+  useEffect(() => {
+    if (session) {
+      fetchFlights();
+    }
+  }, [session]);
 
   if (status === 'loading') {
     return (
@@ -124,8 +166,16 @@ export default function Home() {
           )}
         </div>
 
+        {/* Flights Map */}
+        <div className="mb-8">
+          <h2 className="mb-4 text-xl font-semibold text-gray-900">
+            Flight Map
+          </h2>
+          <FlightsMap flights={flights} />
+        </div>
+
         {/* Flights List */}
-        <FlightsList />
+        <FlightsList flights={flights} loading={loadingFlights} onRefresh={fetchFlights} />
       </main>
     </div>
   );
