@@ -112,6 +112,21 @@ export async function POST(request: NextRequest) {
       }
       
       if (flightData && flightData.departureAirport && flightData.arrivalAirport) {
+        // Check if this flight already exists (avoid duplicates)
+        const { data: existing } = await supabase
+          .from('flights')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('departure_airport', flightData.departureAirport)
+          .eq('arrival_airport', flightData.arrivalAirport)
+          .eq('confirmation_code', flightData.confirmationCode || '')
+          .single();
+
+        if (existing) {
+          // Skip duplicate
+          continue;
+        }
+
         // Enrich with airport data
         const depData = getAirportInfo(flightData.departureAirport);
         const arrData = getAirportInfo(flightData.arrivalAirport);
