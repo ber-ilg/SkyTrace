@@ -3,7 +3,9 @@ import { getServerSession } from 'next-auth';
 import { google } from 'googleapis';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { supabase } from '@/lib/supabase';
-import { extractFlightFromEmail, getAirportData } from '@/lib/flight-extractor';
+import { extractFlightFromEmailImproved } from '@/lib/flight-extractor-improved';
+import { extractFlightWithGemini } from '@/lib/gemini-extractor';
+import { getAirportInfo } from '@/lib/airports';
 
 export async function POST(request: NextRequest) {
   try {
@@ -90,13 +92,29 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Try to extract flight info
-      const flightData = extractFlightFromEmail(subject, body);
+      // Hybrid extraction: Try improved regex first
+      let flightData = extractFlightFromEmailImproved(subject, body);
+      
+      // If regex failed, try Gemini AI (if API key is configured)
+      if (!flightData || !flightData.departureAirport || !flightData.arrivalAirport) {
+        const geminiData = await extractFlightWithGemini(subject, body);
+        if (geminiData && geminiData.departureAirport && geminiData.arrivalAirport) {
+          flightData = {
+            confirmationCode: geminiData.confirmationCode,
+            airline: geminiData.airline,
+            flightNumber: geminiData.flightNumber,
+            departureAirport: geminiData.departureAirport,
+            arrivalAirport: geminiData.arrivalAirport,
+            departureDate: geminiData.departureDate ? new Date(geminiData.departureDate) : undefined,
+            arrivalDate: geminiData.arrivalDate ? new Date(geminiData.arrivalDate) : undefined,
+          };
+        }
+      }
       
       if (flightData && flightData.departureAirport && flightData.arrivalAirport) {
         // Enrich with airport data
-        const depData = getAirportData(flightData.departureAirport);
-        const arrData = getAirportData(flightData.arrivalAirport);
+        const depData = getAirportInfo(flightData.departureAirport);
+        const arrData = getAirportInfo(flightData.arrivalAirport);
 
         // Insert into database
         const { error: insertError } = await supabase.from('flights').insert({
