@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import FlightsList from '@/components/FlightsList';
 import FlightsMap from '@/components/FlightsMap';
 import FlightStats from '@/components/FlightStats';
+import AddFlightModal from '@/components/AddFlightModal';
 import { supabase } from '@/lib/supabase';
 import type { Flight } from '@/lib/supabase';
 
@@ -17,6 +18,8 @@ export default function Home() {
   } | null>(null);
   const [flights, setFlights] = useState<Flight[]>([]);
   const [loadingFlights, setLoadingFlights] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [userId, setUserId] = useState<string>('');
 
   const fetchFlights = async () => {
     if (!session?.user?.email) return;
@@ -34,6 +37,9 @@ export default function Home() {
       setLoadingFlights(false);
       return;
     }
+
+    // Store userId for manual flight entry
+    setUserId(userData.id);
 
     const { data, error } = await supabase
       .from('flights')
@@ -142,18 +148,26 @@ export default function Home() {
         {/* Scan Section */}
         <div className="mb-8 rounded-lg bg-white p-6 shadow">
           <h2 className="mb-4 text-xl font-semibold text-gray-900">
-            Email Scanner
+            Add Flights
           </h2>
           <p className="mb-4 text-gray-600">
-            Scan your Gmail for flight confirmations from the last 2 years.
+            Scan your Gmail for flight confirmations or add flights manually.
           </p>
-          <button
-            onClick={handleScanEmails}
-            disabled={scanning}
-            className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {scanning ? '⏳ Scanning...' : '🔍 Scan Emails'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={handleScanEmails}
+              disabled={scanning}
+              className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {scanning ? '⏳ Scanning...' : '🔍 Scan Emails'}
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="rounded-lg border-2 border-blue-600 bg-white px-6 py-3 font-semibold text-blue-600 shadow hover:bg-blue-50"
+            >
+              ➕ Add Manually
+            </button>
+          </div>
 
           {scanResult && (
             <div className="mt-4 rounded-lg bg-green-50 p-4">
@@ -181,6 +195,14 @@ export default function Home() {
         {/* Flights List */}
         <FlightsList flights={flights} loading={loadingFlights} onRefresh={fetchFlights} />
       </main>
+
+      {/* Add Flight Modal */}
+      <AddFlightModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={fetchFlights}
+        userId={userId}
+      />
     </div>
   );
 }

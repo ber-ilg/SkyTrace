@@ -146,6 +146,7 @@ export const AIRPORT_DATA: Record<string, AirportInfo> = {
   
   // UK Regional
   'STN': { code: 'STN', city: 'London', country: 'United Kingdom', lat: 51.8860, lng: 0.2389 },
+  'LCY': { code: 'LCY', city: 'London', country: 'United Kingdom', lat: 51.5053, lng: 0.0553 },
   'EDI': { code: 'EDI', city: 'Edinburgh', country: 'United Kingdom', lat: 55.9500, lng: -3.3725 },
   'GLA': { code: 'GLA', city: 'Glasgow', country: 'United Kingdom', lat: 55.8719, lng: -4.4331 },
   'BHX': { code: 'BHX', city: 'Birmingham', country: 'United Kingdom', lat: 52.4539, lng: -1.7480 },

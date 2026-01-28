@@ -26,7 +26,7 @@ const AIRLINES = [
   'Korean Air', 'Asiana Airlines', 'Hawaiian Airlines', 'Air New Zealand',
   'South African Airways', 'Ethiopian Airlines', 'Kenya Airways', 'Egypt Air',
   'Avianca', 'LATAM', 'Copa Airlines', 'Aeromexico', 'Volaris', 'Interjet',
-  'Norwegian', 'Wizz Air', 'Vueling', 'TAP Air Portugal', 'Alitalia', 'Swiss', 'Austrian Airlines',
+  'Norwegian', 'Wizz Air', 'Vueling', 'TAP Air Portugal', 'Alitalia', 'ITA Airways', 'Swiss', 'Austrian Airlines',
   'SAS', 'Finnair', 'Icelandair', 'Aer Lingus', 'LOT Polish Airlines',
 ];
 
