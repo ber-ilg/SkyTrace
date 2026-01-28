@@ -11,13 +11,23 @@ interface ExtractedFlight {
   arrivalDate?: Date;
 }
 
-// Common airline names for detection
+// Common airline names for detection (order matters - check longer names first)
 const AIRLINES = [
-  'American Airlines', 'Delta', 'United', 'Southwest', 'JetBlue', 'Alaska Airlines',
-  'British Airways', 'Lufthansa', 'Air France', 'KLM', 'Emirates', 'Qatar Airways',
-  'Turkish Airlines', 'Etihad', 'Virgin Atlantic', 'Iberia', 'Ryanair', 'easyJet',
-  'Air Canada', 'Qantas', 'Singapore Airlines', 'Cathay Pacific', 'ANA', 'JAL',
-  'Thai Airways', 'Malaysia Airlines', 'Garuda Indonesia', 'Air Asia',
+  'American Airlines', 'United Airlines', 'Delta Air Lines', 'Delta', 'Southwest Airlines', 'Southwest',
+  'JetBlue Airways', 'JetBlue', 'Alaska Airlines', 'Spirit Airlines', 'Frontier Airlines',
+  'British Airways', 'Lufthansa', 'Air France', 'KLM Royal Dutch Airlines', 'KLM',
+  'Emirates', 'Qatar Airways', 'Turkish Airlines', 'Etihad Airways', 'Etihad',
+  'Virgin Atlantic', 'Virgin America', 'Iberia', 'Ryanair', 'easyJet',
+  'Air Canada', 'WestJet', 'Qantas', 'Virgin Australia',
+  'Singapore Airlines', 'Cathay Pacific', 'ANA', 'All Nippon Airways', 'Japan Airlines', 'JAL',
+  'Thai Airways', 'Bangkok Airways', 'Thai Smile', 'Air Asia', 'AirAsia',
+  'Malaysia Airlines', 'Garuda Indonesia', 'EVA Air', 'China Airlines',
+  'Air China', 'China Eastern', 'China Southern', 'Hainan Airlines',
+  'Korean Air', 'Asiana Airlines', 'Hawaiian Airlines', 'Air New Zealand',
+  'South African Airways', 'Ethiopian Airlines', 'Kenya Airways', 'Egypt Air',
+  'Avianca', 'LATAM', 'Copa Airlines', 'Aeromexico', 'Volaris', 'Interjet',
+  'Norwegian', 'Wizz Air', 'Vueling', 'TAP Air Portugal', 'Alitalia', 'Swiss', 'Austrian Airlines',
+  'SAS', 'Finnair', 'Icelandair', 'Aer Lingus', 'LOT Polish Airlines',
 ];
 
 const CONFIRMATION_PATTERNS = [

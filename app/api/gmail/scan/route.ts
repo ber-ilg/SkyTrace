@@ -113,14 +113,23 @@ export async function POST(request: NextRequest) {
       
       if (flightData && flightData.departureAirport && flightData.arrivalAirport) {
         // Check if this flight already exists (avoid duplicates)
-        const { data: existing } = await supabase
+        // Match on route + date if available, or just route if no date
+        let duplicateQuery = supabase
           .from('flights')
           .select('id')
           .eq('user_id', userId)
           .eq('departure_airport', flightData.departureAirport)
-          .eq('arrival_airport', flightData.arrivalAirport)
-          .eq('confirmation_code', flightData.confirmationCode || '')
-          .single();
+          .eq('arrival_airport', flightData.arrivalAirport);
+        
+        if (flightData.departureDate) {
+          duplicateQuery = duplicateQuery.eq('departure_date', flightData.departureDate.toISOString());
+        }
+        
+        if (flightData.confirmationCode) {
+          duplicateQuery = duplicateQuery.eq('confirmation_code', flightData.confirmationCode);
+        }
+
+        const { data: existing } = await duplicateQuery.maybeSingle();
 
         if (existing) {
           // Skip duplicate
