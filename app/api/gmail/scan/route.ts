@@ -51,11 +51,12 @@ export async function POST(request: NextRequest) {
       });
 
     // Search for flight-related emails in the last 2 years
+    // More specific query to avoid check-in reminders and marketing
     const twoYearsAgo = new Date();
     twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
     const afterDate = Math.floor(twoYearsAgo.getTime() / 1000);
 
-    const query = `(flight OR booking OR confirmation OR itinerary) after:${afterDate}`;
+    const query = `("booking confirmation" OR "flight confirmation" OR "itinerary" OR "e-ticket") after:${afterDate}`;
     
     const response = await gmail.users.messages.list({
       userId: 'me',
@@ -112,28 +113,43 @@ export async function POST(request: NextRequest) {
       }
       
       if (flightData && flightData.departureAirport && flightData.arrivalAirport) {
-        // Check if this flight already exists (avoid duplicates)
-        // Match on route + date if available, or just route if no date
-        let duplicateQuery = supabase
+        // STRICT RULE: Only process if we have a flight number
+        // This filters out check-in reminders, marketing emails, etc.
+        if (!flightData.flightNumber) {
+          console.log('Skipping email without flight number');
+          continue;
+        }
+
+        // Check for duplicates using flight number as primary key
+        const { data: existingByFlightNum } = await supabase
           .from('flights')
           .select('id')
           .eq('user_id', userId)
+          .eq('flight_number', flightData.flightNumber)
           .eq('departure_airport', flightData.departureAirport)
-          .eq('arrival_airport', flightData.arrivalAirport);
-        
-        if (flightData.departureDate) {
-          duplicateQuery = duplicateQuery.eq('departure_date', flightData.departureDate.toISOString());
-        }
-        
-        if (flightData.confirmationCode) {
-          duplicateQuery = duplicateQuery.eq('confirmation_code', flightData.confirmationCode);
-        }
+          .eq('arrival_airport', flightData.arrivalAirport)
+          .maybeSingle();
 
-        const { data: existing } = await duplicateQuery.maybeSingle();
-
-        if (existing) {
-          // Skip duplicate
+        if (existingByFlightNum) {
+          console.log(`Skipping duplicate flight: ${flightData.flightNumber}`);
           continue;
+        }
+
+        // Also check by date if available (same flight, same day = duplicate)
+        if (flightData.departureDate) {
+          const { data: existingByDate } = await supabase
+            .from('flights')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('departure_airport', flightData.departureAirport)
+            .eq('arrival_airport', flightData.arrivalAirport)
+            .eq('departure_date', flightData.departureDate.toISOString())
+            .maybeSingle();
+
+          if (existingByDate) {
+            console.log(`Skipping duplicate by date: ${flightData.departureAirport} → ${flightData.arrivalAirport} on ${flightData.departureDate.toISOString()}`);
+            continue;
+          }
         }
 
         // Enrich with airport data

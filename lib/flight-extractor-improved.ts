@@ -116,14 +116,40 @@ export function extractFlightFromEmailImproved(
 }
 
 function isFlightEmail(text: string): boolean {
-  const keywords = [
-    'flight', 'booking', 'itinerary', 'boarding pass', 
-    'confirmation', 'departure', 'arrival', 'check-in',
-    'airline', 'airport', 'passenger'
+  const lowerText = text.toLowerCase();
+  
+  // MUST have one of these (actual booking confirmation indicators)
+  const mustHave = [
+    'booking confirmation',
+    'flight confirmation', 
+    'ticket confirmation',
+    'your booking',
+    'itinerary',
+    'e-ticket',
   ];
   
-  const lowerText = text.toLowerCase();
-  return keywords.some(keyword => lowerText.includes(keyword));
+  // REJECT if it has any of these (check-in reminders, marketing, etc.)
+  const rejectIf = [
+    'check-in now',
+    'online check-in',
+    'check in online',
+    'checking in',
+    'web check-in',
+    'mobile check-in',
+    'newsletter',
+    'special offer',
+    'sale',
+    'discount',
+    'subscribe',
+  ];
+  
+  // Check for rejection keywords first
+  if (rejectIf.some(keyword => lowerText.includes(keyword))) {
+    return false;
+  }
+  
+  // Must have at least one confirmation keyword
+  return mustHave.some(keyword => lowerText.includes(keyword));
 }
 
 function extractAirportCodes(text: string): string[] {
